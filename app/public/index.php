@@ -1,18 +1,44 @@
 <?php
 ob_start();
 include_once 'db_connection.php';
-//    /** @var PDO $pdo */
+
+if (!isset($_SESSION['auth'])) {
+    header('Location: /login.php');
+    exit;
+}
+
 global $pdo;
 
-if($_SERVER['REQUEST_METHOD'] ==='POST'){
-    var_dump($_POST);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['date']>= date('Y-m-d')) {
+    $date = $_POST['date'];
+
+    $todayBookings = $pdo->prepare("SELECT * FROM bookings 
+         WHERE bookings.user_id =:user 
+           AND bookings.date = :date ");
+    $todayBookings -> bindParam(":user", $_SESSION['auth']);
+    $todayBookings -> bindParam(":date", $date);
+    $todayBookings -> execute();
+    $todayBookings -> setFetchMode(PDO::FETCH_ASSOC);
+    $todayBookings = $todayBookings ->fetchAll();
+
+    if(!empty($todayBookings)){
+        $_SESSION['error'] = "Can't book again!";
+        header("Location: /?date=$date");
+        exit;
+    }
 
 
-    return;
+//    var_dump($todayBookings);
+//    die();
+
+    $sql = "INSERT INTO bookings(date, user_id) VALUES (?, ?)";
+    $pdo->prepare($sql)->execute([$date, $_SESSION['auth']]);
+    header("Location: /?date=$date");
+    exit;
 }
 
 $date = $_GET['date'] ?? date("Y-m-d");
-
 
 $query = $pdo->prepare("SELECT users.username, users.email
                                     FROM users INNER JOIN bookings ON bookings.user_id = users.id
@@ -39,6 +65,27 @@ $bookings = $query->fetchAll();
 
 </head>
 <body>
+<h1>
+
+
+    <a href="register.php">
+        <button style=" background-color: #0da344; border:none; width: 50px; height:35px; color: white; border-radius: 10%">
+            Register
+        </button>
+    </a>
+    <a href="login.php">
+        <button style=" background-color: #0da344; border:none; width: 50px; height:35px; color: white; border-radius: 10%">
+            Login
+        </button>
+    </a>
+    <a href="logout.php">
+        <button style=" background-color: #0da344; border:none; width: 50px; height:35px; color: white; border-radius: 10%">
+            Logout
+        </button>
+    </a>
+
+
+</h1>
 <div class="container">
 
     <div class="calendar">
@@ -85,13 +132,29 @@ $bookings = $query->fetchAll();
             }
             ?>
 
-            <form class="email-form" method='POST'>
-                <input type="text" id="bookdate" name="date"  value="">
+            <?php  if($date >= date('Y-m-d')):     ?>
 
-                <div class="button" >
+
+            <form class="email-form" method='POST'>
+                <input type="hidden" id="bookdate" name="date" value="">
+
+                <div class="button">
+
                     <button type="submit">Book this day</button>
+
                 </div>
             </form>
+
+            <?php  endif;     ?>
+
+            <?php
+
+            if (isset($_SESSION['error'])) {
+                print ($_SESSION['error']);
+                unset($_SESSION['error']);
+            }
+
+            ?>
 
         </div>
     </div>
